@@ -47,4 +47,5 @@ latest updates from team/
 
 
 
-# Puppeteer cache (large platform-specific binaries - ignore, download during npm install/build)
+# Puppeteer cache (large platform-specific binaries - temporarily included for Vercel deployment)
+!.cache/
