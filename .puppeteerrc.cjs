@@ -6,8 +6,8 @@ const { join } = require('path');
 module.exports = {
   // Configure Puppeteer cache directory
   cacheDirectory: join(process.cwd(), '.cache', 'puppeteer'),
-  // Skip download since we manage Chrome binaries manually
-  skipDownload: true,
-  // Ensure we use the cached Chrome
-  executablePath: undefined, // Let Puppeteer find it automatically from cache
+  // Allow Puppeteer to download its bundled Chromium
+  skipDownload: false,
+  // Let Puppeteer use its bundled Chromium automatically
+  executablePath: undefined,
 };

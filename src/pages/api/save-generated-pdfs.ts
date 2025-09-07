@@ -195,13 +195,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Try alternative approach: let Puppeteer find Chrome automatically
-    console.log(`[save-generated-pdfs] Attempting to launch browser with executablePath: ${executablePath}`);
+    // Try Puppeteer's bundled Chromium first (most reliable for serverless)
+    console.log(`[save-generated-pdfs] Attempting to launch browser with Puppeteer's bundled Chromium`);
 
     let browser;
     try {
       browser = await puppeteer.launch({
-        executablePath,
         headless: true,
         args: [
           '--no-sandbox',
@@ -240,28 +239,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           '--disable-features=VizDisplayCompositor'
         ],
       });
-      console.log(`[save-generated-pdfs] Browser launched successfully with cached Chrome`);
+      console.log(`[save-generated-pdfs] Browser launched successfully with Puppeteer's bundled Chromium`);
     } catch (launchErr) {
-      console.error(`[save-generated-pdfs] Failed to launch with cached Chrome: ${launchErr}`);
+      console.error(`[save-generated-pdfs] Failed to launch with bundled Chromium: ${launchErr}`);
 
-      // Try fallback: launch without executablePath (let Puppeteer find system Chrome)
-      console.log(`[save-generated-pdfs] Trying fallback: system Chrome detection`);
-      try {
-        browser = await puppeteer.launch({
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--single-process',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
-          ],
-        });
-        console.log(`[save-generated-pdfs] Browser launched successfully with system Chrome`);
-      } catch (fallbackErr) {
-        console.error(`[save-generated-pdfs] Fallback also failed: ${fallbackErr}`);
-        throw new Error(`Failed to launch browser: ${fallbackErr}`);
+      // Try fallback: cached Chrome with executable path
+      if (executablePath) {
+        console.log(`[save-generated-pdfs] Trying fallback: cached Chrome at ${executablePath}`);
+        try {
+          browser = await puppeteer.launch({
+            executablePath,
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--single-process',
+              '--disable-web-security',
+              '--disable-features=VizDisplayCompositor'
+            ],
+          });
+          console.log(`[save-generated-pdfs] Browser launched successfully with cached Chrome`);
+        } catch (fallbackErr) {
+          console.error(`[save-generated-pdfs] Cached Chrome fallback also failed: ${fallbackErr}`);
+          throw new Error(`Failed to launch browser: ${fallbackErr}`);
+        }
+      } else {
+        console.error(`[save-generated-pdfs] No executable path available for fallback`);
+        throw new Error(`Failed to launch browser: ${launchErr}`);
       }
     }
     console.log('[save-generated-pdfs] Browser launched successfully');
