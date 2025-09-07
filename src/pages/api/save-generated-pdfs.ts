@@ -86,6 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const chromePath = path.join(cacheDir, linuxDir, 'chrome-linux64', 'chrome');
         if (fs.existsSync(chromePath)) {
           executablePath = chromePath;
+          console.log(`[save-generated-pdfs] Found Linux Chrome at: ${chromePath}`);
         }
       }
       // Fallback to Windows Chrome
@@ -95,8 +96,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const chromePath = path.join(cacheDir, winDir, 'chrome-win64', 'chrome.exe');
           if (fs.existsSync(chromePath)) {
             executablePath = chromePath;
+            console.log(`[save-generated-pdfs] Found Windows Chrome at: ${chromePath}`);
           }
         }
+      }
+    }
+
+    // Additional fallback: try to find any Chrome executable in the cache
+    if (!executablePath) {
+      console.log('[save-generated-pdfs] No Chrome found with standard paths, searching recursively...');
+      const findChrome = (dir: string): string | undefined => {
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          const fullPath = path.join(dir, item);
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory()) {
+            const result = findChrome(fullPath);
+            if (result) return result;
+          } else if (item === 'chrome' || item === 'chrome.exe') {
+            return fullPath;
+          }
+        }
+        return undefined;
+      };
+      executablePath = findChrome(cacheDir);
+      if (executablePath) {
+        console.log(`[save-generated-pdfs] Found Chrome via recursive search: ${executablePath}`);
       }
     }
 
@@ -105,6 +130,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     console.log(`[save-generated-pdfs] Using executable: ${executablePath}`);
+
+    // Verify the executable exists and is executable
+    if (executablePath) {
+      try {
+        const stats = fs.statSync(executablePath);
+        console.log(`[save-generated-pdfs] Chrome executable stats: size=${stats.size}, mode=${stats.mode.toString(8)}`);
+      } catch (statErr) {
+        console.error(`[save-generated-pdfs] Error checking Chrome executable: ${statErr}`);
+        throw new Error(`Chrome executable not accessible: ${executablePath}`);
+      }
+    }
 
     browser = await puppeteer.launch({
       executablePath,
