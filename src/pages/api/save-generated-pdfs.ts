@@ -18,6 +18,8 @@ import path from 'path';
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('\n--- 📩 Incoming request to /api/save-generated-pdfs ---');
   console.log('➡️ Method:', req.method);
+  console.log('📂 Current working directory:', process.cwd());
+  console.log('🔧 __dirname:', __dirname);
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST requests are allowed' });
@@ -75,11 +77,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Launch browser with cached Chrome, prefer linux then windows fallback
     console.log('[save-generated-pdfs] Launching browser...');
 
-    const cacheDir = './.cache/puppeteer';
+    const cacheDir = path.join(process.cwd(), '.cache', 'puppeteer');
+
+    // Ensure cache directory exists
+    if (!fs.existsSync(cacheDir)) {
+      console.log(`[save-generated-pdfs] Cache directory doesn't exist, creating: ${cacheDir}`);
+      try {
+        fs.mkdirSync(cacheDir, { recursive: true });
+      } catch (mkdirErr) {
+        console.error(`[save-generated-pdfs] Failed to create cache directory: ${mkdirErr}`);
+      }
+    }
 
     let executablePath: string | undefined;
     if (fs.existsSync(cacheDir)) {
+      console.log(`[save-generated-pdfs] Cache directory exists: ${cacheDir}`);
       const dirs = fs.readdirSync(cacheDir);
+      console.log(`[save-generated-pdfs] Cache directory contents:`, dirs);
+
       // Look for Linux Chrome first (for Vercel deployment)
       const linuxDir = dirs.find(dir => dir.startsWith('linux-'));
       if (linuxDir) {
@@ -99,6 +114,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.log(`[save-generated-pdfs] Found Windows Chrome at: ${chromePath}`);
           }
         }
+      }
+    } else {
+      console.error(`[save-generated-pdfs] Cache directory does not exist: ${cacheDir}`);
+      console.log(`[save-generated-pdfs] Attempting to list root directory contents...`);
+      try {
+        const rootContents = fs.readdirSync(process.cwd());
+        console.log(`[save-generated-pdfs] Root directory contents:`, rootContents);
+      } catch (listErr) {
+        console.error(`[save-generated-pdfs] Failed to list root directory: ${listErr}`);
       }
     }
 
