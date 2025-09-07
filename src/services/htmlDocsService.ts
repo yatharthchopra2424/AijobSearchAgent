@@ -1,5 +1,25 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+
+// Type definitions for structured nodes
+interface TextRunData {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  font?: string;
+  size?: number;
+}
+
+interface StructuredNode {
+  type: 'heading' | 'paragraph' | 'list' | 'group';
+  level?: number;
+  runs?: TextRunData[];
+  text?: string;
+  ordered?: boolean;
+  items?: { runs?: TextRunData[]; text?: string }[];
+  children?: StructuredNode[];
+}
 
 /**
  * Render given HTML using an isolated Puppeteer instance and convert to DOCX.
@@ -35,7 +55,7 @@ export async function convertHtmlToDocxBuffer(html: string, opts?: { pageWidthPx
     await new Promise(resolve => setTimeout(resolve, 250));
 
     console.log('[htmlDocsService] extracting structured DOM nodes for headings/lists/paragraphs with inline styles');
-    const structuredNodes: any[] = await page.evaluate(() => {
+    const structuredNodes: StructuredNode[] = await page.evaluate(() => {
       function parseStyle(styleStr: string) {
         const out: any = {};
         if (!styleStr) return out;
@@ -221,7 +241,7 @@ export async function convertHtmlToDocxBuffer(html: string, opts?: { pageWidthPx
 /**
  * Map extracted structured nodes into docx Paragraphs.
  */
-export function mapNodesToDocxChildren(nodes: any[]): Paragraph[] {
+export function mapNodesToDocxChildren(nodes: StructuredNode[]): Paragraph[] {
   const children: Paragraph[] = [];
 
   for (const node of nodes || []) {
@@ -280,8 +300,16 @@ export function mapNodesToDocxChildren(nodes: any[]): Paragraph[] {
   return children;
 }
 
-function buildTextRun(r: any): TextRun {
-  const opts: any = { text: r.text || '' };
+function buildTextRun(r: TextRunData): TextRun {
+  const opts: {
+    text: string;
+    bold?: boolean;
+    italics?: boolean;
+    underline?: object;
+    font?: string;
+    size?: number;
+  } = { text: r.text || '' };
+
   if (r.bold) opts.bold = true;
   if (r.italic) opts.italics = true;
   if (r.underline) opts.underline = {};

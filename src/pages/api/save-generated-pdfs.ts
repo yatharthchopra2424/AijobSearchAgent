@@ -332,12 +332,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         if (browser) await browser.close();
       } catch (_) {}
-      return res.status(500).json({ error: (pdfErr as any)?.message || 'Failed to generate or upload PDFs' });
+      return res.status(500).json({ error: (pdfErr as Error)?.message || 'Failed to generate or upload PDFs' });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ [save-generated-pdfs] Critical Error:', error);
     if (!res.headersSent) {
-      return res.status(500).json({ error: error?.message || 'Internal Server Error' });
+      const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
+      return res.status(500).json({ error: errorMessage });
     }
     return;
   }
