@@ -80,17 +80,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let executablePath: string | undefined;
     if (fs.existsSync(cacheDir)) {
       const dirs = fs.readdirSync(cacheDir);
-      const linuxDir = dirs.find(dir => dir.startsWith('chrome-linux-'));
+      // Look for Linux Chrome first (for Vercel deployment)
+      const linuxDir = dirs.find(dir => dir.startsWith('linux-'));
       if (linuxDir) {
-        const chromePath = path.join(cacheDir, linuxDir, 'chrome');
+        const chromePath = path.join(cacheDir, linuxDir, 'chrome-linux64', 'chrome');
         if (fs.existsSync(chromePath)) {
           executablePath = chromePath;
         }
       }
+      // Fallback to Windows Chrome
       if (!executablePath) {
-        const winDir = dirs.find(dir => dir.startsWith('chrome-win32-'));
+        const winDir = dirs.find(dir => dir.startsWith('win64-'));
         if (winDir) {
-          const chromePath = path.join(cacheDir, winDir, 'chrome.exe');
+          const chromePath = path.join(cacheDir, winDir, 'chrome-win64', 'chrome.exe');
           if (fs.existsSync(chromePath)) {
             executablePath = chromePath;
           }

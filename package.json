@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
-    "build": "npx puppeteer browsers install chrome --linux && next build",
+    "build": "npx puppeteer browsers install chrome --platform linux && npx puppeteer browsers install chrome --platform win64 && next build",
     "start": "next start",
     "lint": "next lint",
     "list-modules": "node scripts/list-modules.js"
