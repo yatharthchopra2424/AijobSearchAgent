@@ -40,35 +40,98 @@ export async function convertHtmlToDocxBuffer(html: string, opts?: { pageWidthPx
 
   let browser;
   try {
-    // Try to use system Chrome first (common in serverless environments)
-    const systemChromePaths = [
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      '/opt/google/chrome/chrome',
-      '/opt/microsoft/msedge/msedge',
-      process.env.PUPPETEER_EXECUTABLE_PATH
-    ].filter(Boolean);
+    // For Vercel/serverless environments, use a more robust approach
+    const isVercel = process.env.VERCEL || process.env.NOW_REGION;
+    const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || isVercel;
 
-    let chromePath = null;
-    for (const path of systemChromePaths) {
-      if (path && require('fs').existsSync(path)) {
-        chromePath = path;
-        console.log(`[htmlDocsService] Found system Chrome at: ${chromePath}`);
-        break;
+    let launchOptions: any = {
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    };
+
+    // Try different Chrome detection strategies based on environment
+    if (isServerless) {
+      console.log('[htmlDocsService] Running in serverless environment');
+
+      // For Vercel, try system Chrome first
+      const systemChromePaths = [
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/opt/google/chrome/chrome',
+        '/opt/microsoft/msedge/msedge',
+        process.env.PUPPETEER_EXECUTABLE_PATH
+      ].filter(Boolean);
+
+      let chromePath = null;
+      for (const path of systemChromePaths) {
+        try {
+          if (require('fs').existsSync(path)) {
+            chromePath = path;
+            console.log(`[htmlDocsService] Found system Chrome at: ${chromePath}`);
+            break;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+
+      if (chromePath) {
+        launchOptions.executablePath = chromePath;
+      } else {
+        console.log('[htmlDocsService] No system Chrome found, trying puppeteer default');
+        // Let puppeteer-core try to find Chrome automatically
+      }
+    } else {
+      // For local development, try system Chrome
+      const systemChromePaths = [
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        process.env.PUPPETEER_EXECUTABLE_PATH
+      ].filter(Boolean);
+
+      for (const path of systemChromePaths) {
+        try {
+          if (require('fs').existsSync(path)) {
+            launchOptions.executablePath = path;
+            console.log(`[htmlDocsService] Found system Chrome at: ${path}`);
+            break;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
       }
     }
 
-    if (!chromePath) {
-      throw new Error('No Chrome executable found');
-    }
-
-    browser = await puppeteer.launch({
-      executablePath: chromePath,
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    console.log('[htmlDocsService] Launch options:', {
+      executablePath: launchOptions.executablePath || 'auto-detect',
+      headless: launchOptions.headless,
+      argsCount: launchOptions.args.length
     });
 
+    browser = await puppeteer.launch(launchOptions);
+    console.log(`[htmlDocsService] Browser launched successfully with puppeteer-core`);
+  } catch (launchErr) {
+    console.error(`[htmlDocsService] Failed to launch browser: ${launchErr}`);
+
+    // Try one more time with minimal options as last resort
+    try {
+      console.log('[htmlDocsService] Trying fallback launch with minimal options');
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      });
+      console.log('[htmlDocsService] Fallback launch successful');
+    } catch (fallbackErr) {
+      console.error(`[htmlDocsService] Fallback also failed: ${fallbackErr}`);
+      throw launchErr; // Throw original error
+    }
+  }
+
+  try {
     const page = await browser.newPage();
     await page.setViewport({ width: opts?.pageWidthPx || 1200, height: 800 });
 
