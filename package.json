@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
-    "build": "echo 'Installing Chrome for puppeteer-core...' && npx puppeteer browsers install chrome --platform linux && echo 'Chrome installed, building application...' && next build",
+    "build": "echo 'Building application with Puppeteer bundled Chromium...' && next build",
     "start": "next start",
     "lint": "next lint",
     "list-modules": "node scripts/list-modules.js",
@@ -45,7 +45,7 @@
     "next": "^15.4.2",
     "openai": "^5.10.2",
     "pdfjs-dist": "^4.2.67",
-    "puppeteer-core": "^24.17.0",
+    "puppeteer": "^24.17.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-redux": "^9.2.0",

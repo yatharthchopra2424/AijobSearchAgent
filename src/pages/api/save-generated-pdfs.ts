@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import admin from 'firebase-admin';
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 
@@ -195,61 +195,78 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Try cached Chrome first (required for puppeteer-core)
-    console.log(`[save-generated-pdfs] Attempting to launch browser with cached Chrome (puppeteer-core)`);
+    // Use Puppeteer's bundled Chromium (recommended for serverless)
+    console.log(`[save-generated-pdfs] Attempting to launch browser with Puppeteer's bundled Chromium`);
 
     let browser;
-    if (executablePath) {
-      try {
-        console.log(`[save-generated-pdfs] Using executable: ${executablePath}`);
-        browser = await puppeteer.launch({
-          executablePath,
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-background-timer-throttling',
-            '--disable-renderer-backgrounding',
-            '--disable-features=TranslateUI',
-            '--disable-ipc-flooding-protection',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-field-trial-config',
-            '--disable-back-forward-cache',
-            '--disable-hang-monitor',
-            '--disable-prompt-on-repost',
-            '--force-color-profile=srgb',
-            '--metrics-recording-only',
-            '--no-crash-upload',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-extensions',
-            '--disable-plugins',
-            '--disable-default-apps',
-            '--disable-sync',
-            '--disable-translate',
-            '--hide-scrollbars',
-            '--metrics-recording-only',
-            '--mute-audio',
-            '--no-default-browser-check',
-            '--no-first-run',
-            '--safebrowsing-disable-auto-update',
-            '--single-process',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
-          ],
-        });
-        console.log(`[save-generated-pdfs] Browser launched successfully with cached Chrome`);
-      } catch (launchErr) {
-        console.error(`[save-generated-pdfs] Failed to launch with cached Chrome: ${launchErr}`);
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-background-timer-throttling',
+          '--disable-renderer-backgrounding',
+          '--disable-features=TranslateUI',
+          '--disable-ipc-flooding-protection',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-field-trial-config',
+          '--disable-back-forward-cache',
+          '--disable-hang-monitor',
+          '--disable-prompt-on-repost',
+          '--force-color-profile=srgb',
+          '--metrics-recording-only',
+          '--no-crash-upload',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-default-apps',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--metrics-recording-only',
+          '--mute-audio',
+          '--no-default-browser-check',
+          '--no-first-run',
+          '--safebrowsing-disable-auto-update',
+          '--single-process',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ],
+      });
+      console.log(`[save-generated-pdfs] Browser launched successfully with Puppeteer's bundled Chromium`);
+    } catch (launchErr) {
+      console.error(`[save-generated-pdfs] Failed to launch with bundled Chromium: ${launchErr}`);
+
+      // Try fallback with cached Chrome if available
+      if (executablePath) {
+        console.log(`[save-generated-pdfs] Trying fallback with cached Chrome: ${executablePath}`);
+        try {
+          browser = await puppeteer.launch({
+            executablePath,
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--single-process',
+              '--disable-web-security',
+              '--disable-features=VizDisplayCompositor'
+            ],
+          });
+          console.log(`[save-generated-pdfs] Browser launched successfully with cached Chrome`);
+        } catch (fallbackErr) {
+          console.error(`[save-generated-pdfs] Fallback also failed: ${fallbackErr}`);
+          throw new Error(`Failed to launch browser: ${fallbackErr}`);
+        }
+      } else {
         throw new Error(`Failed to launch browser: ${launchErr}`);
       }
-    } else {
-      console.error(`[save-generated-pdfs] No Chrome executable found in cache`);
-      throw new Error('Chrome executable not found in cache. Run "npx puppeteer browsers install chrome" first.');
     }
     console.log('[save-generated-pdfs] Browser launched successfully');
 

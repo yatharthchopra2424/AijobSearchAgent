@@ -1,13 +1,13 @@
 const { join } = require('path');
 
 /**
- * @type {import("puppeteer-core").Configuration}
+ * @type {import("puppeteer").Configuration}
  */
 module.exports = {
   // Configure Puppeteer cache directory
   cacheDirectory: join(process.cwd(), '.cache', 'puppeteer'),
-  // Skip download since we manage Chrome binaries manually for puppeteer-core
-  skipDownload: true,
-  // Let our API code handle executable path resolution
+  // Allow Puppeteer to download its bundled Chromium
+  skipDownload: false,
+  // Let Puppeteer use its bundled Chromium automatically
   executablePath: undefined,
 };

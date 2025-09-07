@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 
 // Type definitions for structured nodes
