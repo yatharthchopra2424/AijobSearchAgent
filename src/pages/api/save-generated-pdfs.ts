@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import admin from 'firebase-admin';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
 
@@ -147,7 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (!executablePath) {
-      throw new Error('Chrome executable not found in cache. Run "npx puppeteer browsers install chrome" first.');
+      console.log('[save-generated-pdfs] No cached Chrome found, will try system Chrome');
     }
 
     console.log(`[save-generated-pdfs] Using executable: ${executablePath}`);
@@ -195,12 +195,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Use Puppeteer's bundled Chromium (recommended for serverless)
-    console.log(`[save-generated-pdfs] Attempting to launch browser with Puppeteer's bundled Chromium`);
+    // Use puppeteer-core with system Chrome (recommended for serverless)
+    console.log(`[save-generated-pdfs] Attempting to launch browser with puppeteer-core`);
 
     let browser;
     try {
+      // Try to use system Chrome first (common in serverless environments)
+      const systemChromePaths = [
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/opt/google/chrome/chrome',
+        '/opt/microsoft/msedge/msedge',
+        process.env.PUPPETEER_EXECUTABLE_PATH
+      ].filter(Boolean);
+
+      let chromePath = null;
+      for (const path of systemChromePaths) {
+        if (path && require('fs').existsSync(path)) {
+          chromePath = path;
+          console.log(`[save-generated-pdfs] Found system Chrome at: ${chromePath}`);
+          break;
+        }
+      }
+
+      // Fallback to cached Chrome if system Chrome not found
+      if (!chromePath && executablePath) {
+        chromePath = executablePath;
+        console.log(`[save-generated-pdfs] Using cached Chrome at: ${chromePath}`);
+      }
+
+      if (!chromePath) {
+        throw new Error('No Chrome executable found');
+      }
+
       browser = await puppeteer.launch({
+        executablePath: chromePath,
         headless: true,
         args: [
           '--no-sandbox',
@@ -239,34 +269,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           '--disable-features=VizDisplayCompositor'
         ],
       });
-      console.log(`[save-generated-pdfs] Browser launched successfully with Puppeteer's bundled Chromium`);
+      console.log(`[save-generated-pdfs] Browser launched successfully with puppeteer-core`);
     } catch (launchErr) {
-      console.error(`[save-generated-pdfs] Failed to launch with bundled Chromium: ${launchErr}`);
-
-      // Try fallback with cached Chrome if available
-      if (executablePath) {
-        console.log(`[save-generated-pdfs] Trying fallback with cached Chrome: ${executablePath}`);
-        try {
-          browser = await puppeteer.launch({
-            executablePath,
-            headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--single-process',
-              '--disable-web-security',
-              '--disable-features=VizDisplayCompositor'
-            ],
-          });
-          console.log(`[save-generated-pdfs] Browser launched successfully with cached Chrome`);
-        } catch (fallbackErr) {
-          console.error(`[save-generated-pdfs] Fallback also failed: ${fallbackErr}`);
-          throw new Error(`Failed to launch browser: ${fallbackErr}`);
-        }
-      } else {
-        throw new Error(`Failed to launch browser: ${launchErr}`);
-      }
+      console.error(`[save-generated-pdfs] Failed to launch browser: ${launchErr}`);
+      throw new Error(`Failed to launch browser: ${launchErr}`);
     }
     console.log('[save-generated-pdfs] Browser launched successfully');
 
