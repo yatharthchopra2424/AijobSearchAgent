@@ -244,11 +244,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ],
       };
 
-      // Try different Chrome detection strategies based on environment
-      if (isServerless) {
-        console.log('[save-generated-pdfs] Running in serverless environment');
+      // Prioritize cached Chrome from puppeteer-core
+      if (executablePath && require('fs').existsSync(executablePath)) {
+        launchOptions.executablePath = executablePath;
+        console.log(`[save-generated-pdfs] Using puppeteer-core cached Chrome at: ${executablePath}`);
+      } else {
+        console.log('[save-generated-pdfs] No cached Chrome found, trying system Chrome');
 
-        // For Vercel, try system Chrome first
+        // Fallback to system Chrome if cached Chrome not available
         const systemChromePaths = [
           '/usr/bin/google-chrome-stable',
           '/usr/bin/google-chrome',
@@ -275,64 +278,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (chromePath) {
           launchOptions.executablePath = chromePath;
         } else {
-          // Fallback to cached Chrome if available
-          if (executablePath && require('fs').existsSync(executablePath)) {
-            launchOptions.executablePath = executablePath;
-            console.log(`[save-generated-pdfs] Using cached Chrome at: ${executablePath}`);
-          } else {
-            // Last resort: try to find any Chrome in the system
-            const fallbackPaths = [
-              '/usr/bin/google-chrome-stable',
-              '/usr/bin/google-chrome',
-              '/usr/bin/chromium-browser',
-              '/usr/bin/chromium',
-              '/opt/google/chrome/chrome',
-              '/opt/microsoft/msedge/msedge'
-            ];
-
-            for (const path of fallbackPaths) {
-              try {
-                if (require('fs').existsSync(path)) {
-                  launchOptions.executablePath = path;
-                  console.log(`[save-generated-pdfs] Found fallback Chrome at: ${path}`);
-                  break;
-                }
-              } catch (e) {
-                // Continue to next path
-              }
-            }
-
-            if (!launchOptions.executablePath) {
-              throw new Error('No Chrome executable found. Please ensure Chrome is installed or set PUPPETEER_EXECUTABLE_PATH environment variable.');
-            }
-          }
-        }
-      } else {
-        // For local development, try cached Chrome first, then system
-        if (executablePath && require('fs').existsSync(executablePath)) {
-          launchOptions.executablePath = executablePath;
-          console.log(`[save-generated-pdfs] Using cached Chrome at: ${executablePath}`);
-        } else {
-          // Try system Chrome
-          const systemChromePaths = [
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/google-chrome',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium',
-            process.env.PUPPETEER_EXECUTABLE_PATH
-          ].filter(Boolean);
-
-          for (const path of systemChromePaths) {
-            try {
-              if (require('fs').existsSync(path)) {
-                launchOptions.executablePath = path;
-                console.log(`[save-generated-pdfs] Found system Chrome at: ${path}`);
-                break;
-              }
-            } catch (e) {
-              // Continue to next path
-            }
-          }
+          throw new Error('No Chrome executable found. Please ensure Chrome is installed or set PUPPETEER_EXECUTABLE_PATH environment variable.');
         }
       }
 

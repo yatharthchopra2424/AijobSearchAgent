@@ -49,11 +49,39 @@ export async function convertHtmlToDocxBuffer(html: string, opts?: { pageWidthPx
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     };
 
-    // Try different Chrome detection strategies based on environment
-    if (isServerless) {
-      console.log('[htmlDocsService] Running in serverless environment');
+    // Prioritize cached Chrome from puppeteer-core
+    const cacheDir = require('path').join(process.cwd(), '.cache', 'puppeteer');
+    let cachedChromePath = null;
 
-      // For Vercel, try system Chrome first
+    if (require('fs').existsSync(cacheDir)) {
+      const dirs = require('fs').readdirSync(cacheDir);
+      // Look for Linux Chrome first
+      const linuxDir = dirs.find((dir: string) => dir.startsWith('linux-'));
+      if (linuxDir) {
+        const chromePath = require('path').join(cacheDir, linuxDir, 'chrome-linux64', 'chrome');
+        if (require('fs').existsSync(chromePath)) {
+          cachedChromePath = chromePath;
+        }
+      }
+      // Fallback to Windows Chrome
+      if (!cachedChromePath) {
+        const winDir = dirs.find((dir: string) => dir.startsWith('win64-'));
+        if (winDir) {
+          const chromePath = require('path').join(cacheDir, winDir, 'chrome-win64', 'chrome.exe');
+          if (require('fs').existsSync(chromePath)) {
+            cachedChromePath = chromePath;
+          }
+        }
+      }
+    }
+
+    if (cachedChromePath) {
+      launchOptions.executablePath = cachedChromePath;
+      console.log(`[htmlDocsService] Using puppeteer-core cached Chrome at: ${cachedChromePath}`);
+    } else {
+      console.log('[htmlDocsService] No cached Chrome found, trying system Chrome');
+
+      // Fallback to system Chrome if cached Chrome not available
       const systemChromePaths = [
         '/usr/bin/google-chrome-stable',
         '/usr/bin/google-chrome',
@@ -80,83 +108,7 @@ export async function convertHtmlToDocxBuffer(html: string, opts?: { pageWidthPx
       if (chromePath) {
         launchOptions.executablePath = chromePath;
       } else {
-        // Fallback to cached Chrome if available
-        const cacheDir = require('path').join(process.cwd(), '.cache', 'puppeteer');
-        let cachedChromePath = null;
-
-        if (require('fs').existsSync(cacheDir)) {
-          const dirs = require('fs').readdirSync(cacheDir);
-          // Look for Linux Chrome first
-          const linuxDir = dirs.find((dir: string) => dir.startsWith('linux-'));
-          if (linuxDir) {
-            const chromePath = require('path').join(cacheDir, linuxDir, 'chrome-linux64', 'chrome');
-            if (require('fs').existsSync(chromePath)) {
-              cachedChromePath = chromePath;
-            }
-          }
-          // Fallback to Windows Chrome
-          if (!cachedChromePath) {
-            const winDir = dirs.find((dir: string) => dir.startsWith('win64-'));
-            if (winDir) {
-              const chromePath = require('path').join(cacheDir, winDir, 'chrome-win64', 'chrome.exe');
-              if (require('fs').existsSync(chromePath)) {
-                cachedChromePath = chromePath;
-              }
-            }
-          }
-        }
-
-        if (cachedChromePath) {
-          launchOptions.executablePath = cachedChromePath;
-          console.log(`[htmlDocsService] Using cached Chrome at: ${cachedChromePath}`);
-        } else {
-          // Last resort: try to find any Chrome in the system
-          const fallbackPaths = [
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/google-chrome',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium',
-            '/opt/google/chrome/chrome',
-            '/opt/microsoft/msedge/msedge'
-          ];
-
-          for (const path of fallbackPaths) {
-            try {
-              if (require('fs').existsSync(path)) {
-                launchOptions.executablePath = path;
-                console.log(`[htmlDocsService] Found fallback Chrome at: ${path}`);
-                break;
-              }
-            } catch (e) {
-              // Continue to next path
-            }
-          }
-
-          if (!launchOptions.executablePath) {
-            throw new Error('No Chrome executable found. Please ensure Chrome is installed or set PUPPETEER_EXECUTABLE_PATH environment variable.');
-          }
-        }
-      }
-    } else {
-      // For local development, try system Chrome
-      const systemChromePaths = [
-        '/usr/bin/google-chrome-stable',
-        '/usr/bin/google-chrome',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/chromium',
-        process.env.PUPPETEER_EXECUTABLE_PATH
-      ].filter(Boolean);
-
-      for (const path of systemChromePaths) {
-        try {
-          if (require('fs').existsSync(path)) {
-            launchOptions.executablePath = path;
-            console.log(`[htmlDocsService] Found system Chrome at: ${path}`);
-            break;
-          }
-        } catch (e) {
-          // Continue to next path
-        }
+        throw new Error('No Chrome executable found. Please ensure Chrome is installed or set PUPPETEER_EXECUTABLE_PATH environment variable.');
       }
     }
 
