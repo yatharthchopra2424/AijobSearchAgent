@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 
 // Type definitions for structured nodes
@@ -40,7 +40,31 @@ export async function convertHtmlToDocxBuffer(html: string, opts?: { pageWidthPx
 
   let browser;
   try {
+    // Try to use system Chrome first (common in serverless environments)
+    const systemChromePaths = [
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/opt/google/chrome/chrome',
+      '/opt/microsoft/msedge/msedge',
+      process.env.PUPPETEER_EXECUTABLE_PATH
+    ].filter(Boolean);
+
+    let chromePath = null;
+    for (const path of systemChromePaths) {
+      if (path && require('fs').existsSync(path)) {
+        chromePath = path;
+        console.log(`[htmlDocsService] Found system Chrome at: ${chromePath}`);
+        break;
+      }
+    }
+
+    if (!chromePath) {
+      throw new Error('No Chrome executable found');
+    }
+
     browser = await puppeteer.launch({
+      executablePath: chromePath,
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
