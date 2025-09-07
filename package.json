@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
-    "build": "echo 'Installing Chrome binaries...' && npx puppeteer browsers install chrome --platform linux && npx puppeteer browsers install chrome --platform win64 && echo 'Chrome binaries installed' && next build",
+    "build": "echo 'Installing Chrome binaries...' && npx puppeteer browsers install chrome --platform linux && npx puppeteer browsers install chrome --platform win64 && echo 'Setting Chrome permissions...' && chmod +x .cache/puppeteer/chrome/linux-*/chrome-linux64/chrome* 2>/dev/null || echo 'Permission setting may not be needed in this environment' && echo 'Chrome binaries installed' && next build",
     "start": "next start",
     "lint": "next lint",
     "list-modules": "node scripts/list-modules.js",

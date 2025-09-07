@@ -160,6 +160,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const stats = fs.statSync(executablePath);
         console.log(`[save-generated-pdfs] Chrome executable stats: size=${stats.size}, mode=${stats.mode.toString(8)}`);
+
+        // Check if executable bit is set, if not, try to set it
+        if (!(stats.mode & parseInt('111', 8))) {
+          console.log(`[save-generated-pdfs] Chrome executable doesn't have execute permissions, attempting to set...`);
+          try {
+            // Try to set execute permissions (this might not work in all environments)
+            fs.chmodSync(executablePath, 0o755);
+            console.log(`[save-generated-pdfs] Successfully set execute permissions on Chrome binary`);
+          } catch (chmodErr) {
+            console.warn(`[save-generated-pdfs] Failed to set execute permissions: ${chmodErr}`);
+            // Continue anyway, as some environments might handle this automatically
+          }
+        }
+
+        // Also check and set permissions for related Chrome binaries
+        const chromeDir = path.dirname(executablePath);
+        const relatedBinaries = ['chrome-wrapper', 'chrome-sandbox', 'chrome_crashpad_handler'];
+        for (const binary of relatedBinaries) {
+          const binaryPath = path.join(chromeDir, binary);
+          if (fs.existsSync(binaryPath)) {
+            try {
+              const binaryStats = fs.statSync(binaryPath);
+              if (!(binaryStats.mode & parseInt('111', 8))) {
+                fs.chmodSync(binaryPath, 0o755);
+                console.log(`[save-generated-pdfs] Set execute permissions on ${binary}`);
+              }
+            } catch (binaryErr) {
+              console.warn(`[save-generated-pdfs] Failed to set permissions on ${binary}: ${binaryErr}`);
+            }
+          }
+        }
       } catch (statErr) {
         console.error(`[save-generated-pdfs] Error checking Chrome executable: ${statErr}`);
         throw new Error(`Chrome executable not accessible: ${executablePath}`);
@@ -175,7 +206,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-field-trial-config',
+        '--disable-back-forward-cache',
+        '--disable-hang-monitor',
+        '--disable-prompt-on-repost',
+        '--force-color-profile=srgb',
+        '--metrics-recording-only',
+        '--no-crash-upload',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--metrics-recording-only',
+        '--mute-audio',
+        '--no-default-browser-check',
+        '--no-first-run',
+        '--safebrowsing-disable-auto-update',
+        '--single-process',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
       ],
     });
     console.log('[save-generated-pdfs] Browser launched successfully');
