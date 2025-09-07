@@ -275,9 +275,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (chromePath) {
           launchOptions.executablePath = chromePath;
         } else {
-          console.log('[save-generated-pdfs] No system Chrome found, trying puppeteer default');
-          // Let puppeteer-core try to find Chrome automatically
-          // This works better in some serverless environments
+          // Fallback to cached Chrome if available
+          if (executablePath && require('fs').existsSync(executablePath)) {
+            launchOptions.executablePath = executablePath;
+            console.log(`[save-generated-pdfs] Using cached Chrome at: ${executablePath}`);
+          } else {
+            // Last resort: try to find any Chrome in the system
+            const fallbackPaths = [
+              '/usr/bin/google-chrome-stable',
+              '/usr/bin/google-chrome',
+              '/usr/bin/chromium-browser',
+              '/usr/bin/chromium',
+              '/opt/google/chrome/chrome',
+              '/opt/microsoft/msedge/msedge'
+            ];
+
+            for (const path of fallbackPaths) {
+              try {
+                if (require('fs').existsSync(path)) {
+                  launchOptions.executablePath = path;
+                  console.log(`[save-generated-pdfs] Found fallback Chrome at: ${path}`);
+                  break;
+                }
+              } catch (e) {
+                // Continue to next path
+              }
+            }
+
+            if (!launchOptions.executablePath) {
+              throw new Error('No Chrome executable found. Please ensure Chrome is installed or set PUPPETEER_EXECUTABLE_PATH environment variable.');
+            }
+          }
         }
       } else {
         // For local development, try cached Chrome first, then system

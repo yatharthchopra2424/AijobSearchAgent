@@ -80,8 +80,62 @@ export async function convertHtmlToDocxBuffer(html: string, opts?: { pageWidthPx
       if (chromePath) {
         launchOptions.executablePath = chromePath;
       } else {
-        console.log('[htmlDocsService] No system Chrome found, trying puppeteer default');
-        // Let puppeteer-core try to find Chrome automatically
+        // Fallback to cached Chrome if available
+        const cacheDir = require('path').join(process.cwd(), '.cache', 'puppeteer');
+        let cachedChromePath = null;
+
+        if (require('fs').existsSync(cacheDir)) {
+          const dirs = require('fs').readdirSync(cacheDir);
+          // Look for Linux Chrome first
+          const linuxDir = dirs.find((dir: string) => dir.startsWith('linux-'));
+          if (linuxDir) {
+            const chromePath = require('path').join(cacheDir, linuxDir, 'chrome-linux64', 'chrome');
+            if (require('fs').existsSync(chromePath)) {
+              cachedChromePath = chromePath;
+            }
+          }
+          // Fallback to Windows Chrome
+          if (!cachedChromePath) {
+            const winDir = dirs.find((dir: string) => dir.startsWith('win64-'));
+            if (winDir) {
+              const chromePath = require('path').join(cacheDir, winDir, 'chrome-win64', 'chrome.exe');
+              if (require('fs').existsSync(chromePath)) {
+                cachedChromePath = chromePath;
+              }
+            }
+          }
+        }
+
+        if (cachedChromePath) {
+          launchOptions.executablePath = cachedChromePath;
+          console.log(`[htmlDocsService] Using cached Chrome at: ${cachedChromePath}`);
+        } else {
+          // Last resort: try to find any Chrome in the system
+          const fallbackPaths = [
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/opt/google/chrome/chrome',
+            '/opt/microsoft/msedge/msedge'
+          ];
+
+          for (const path of fallbackPaths) {
+            try {
+              if (require('fs').existsSync(path)) {
+                launchOptions.executablePath = path;
+                console.log(`[htmlDocsService] Found fallback Chrome at: ${path}`);
+                break;
+              }
+            } catch (e) {
+              // Continue to next path
+            }
+          }
+
+          if (!launchOptions.executablePath) {
+            throw new Error('No Chrome executable found. Please ensure Chrome is installed or set PUPPETEER_EXECUTABLE_PATH environment variable.');
+          }
+        }
       }
     } else {
       // For local development, try system Chrome
